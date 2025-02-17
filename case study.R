@@ -4,22 +4,23 @@ library(caret)
 library(mice)       
 
 
-df <- read_csv("Master Actuariat/case study/srcsc-2025-dam-data-for-students.csv")
+df <- srcsc_2025_dam_data_for_students
 
 str(df)
 
-# ---- 1. Gestion des variables catégorielles ----
+# ---- 1. Gestion des variables categorielles ----
 
 categorical_vars <- names(df)[sapply(df, is.character)]
 df[categorical_vars] <- lapply(df[categorical_vars], as.factor)
 
 # ---- 2. Gestion des valeurs manquantes ----
+colSums(is.na(df))
 
 impute_missing <- function(data) {
   for (col in names(data)) {
     if (any(is.na(data[[col]]))) {
       if (is.numeric(data[[col]])) {
-        # Imputer par la médiane (plus robuste que la moyenne)
+        # Imputer par la m?diane (plus robuste que la moyenne)
         data[[col]][is.na(data[[col]])] <- median(data[[col]], na.rm = TRUE)
       } else if (is.factor(data[[col]])) {
         
