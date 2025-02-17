@@ -10,17 +10,30 @@ str(df)
 
 # ---- 1. Gestion des variables categorielles ----
 
+df <- read_csv("Master Actuariat/case study/srcsc-2025-dam-data-for-students.csv")
+
+str(df)
+
+# ---- 1. Gestion des variables categorielles ----
+
+
 categorical_vars <- names(df)[sapply(df, is.character)]
 df[categorical_vars] <- lapply(df[categorical_vars], as.factor)
 
 # ---- 2. Gestion des valeurs manquantes ----
+
 colSums(is.na(df))
+
+
 
 impute_missing <- function(data) {
   for (col in names(data)) {
     if (any(is.na(data[[col]]))) {
       if (is.numeric(data[[col]])) {
-        # Imputer par la m?diane (plus robuste que la moyenne)
+
+        # Imputer par la mediane (plus robuste que la moyenne)
+
+
         data[[col]][is.na(data[[col]])] <- median(data[[col]], na.rm = TRUE)
       } else if (is.factor(data[[col]])) {
         
