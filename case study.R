@@ -99,5 +99,6 @@ df_categorical_imputed
 
 # combiner valeur num et categorielles
 data <- cbind(df_categorical_imputed, df_filtered_imputed)
-df
+write.csv(data, "C:/Users/hibam/OneDrive/Documents/Master actuariat/case study/datasansNA.csv", row.names = FALSE)
+
 #--------------------------------------------------
