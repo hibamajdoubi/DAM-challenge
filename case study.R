@@ -1,57 +1,103 @@
 
-library(tidyverse)
-library(caret)       
-library(mice)       
+install.packages("mice")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("corrplot")
+install.packages("lubridate")
+install.packages("VIM")
+install.packages("doParallel")
+library(caret)
+library(mice)
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(lubridate)
+library(VIM)
+library(doParallel)
+library(parallel)
 
 
 df <- srcsc_2025_dam_data_for_students
 
-str(df)
+#--------------------------------------------------
+#convertir les colonnes de dates en `Date` puis en `double`**
+date_cols <- c("Assessment Date", "Last Inspection Date")  
 
-# ---- 1. Gestion des variables categorielles ----
-
-df <- read_csv("Master Actuariat/case study/srcsc-2025-dam-data-for-students.csv")
-
-str(df)
-
-# ---- 1. Gestion des variables categorielles ----
-
-
-categorical_vars <- names(df)[sapply(df, is.character)]
-df[categorical_vars] <- lapply(df[categorical_vars], as.factor)
-
-# ---- 2. Gestion des valeurs manquantes ----
-
-colSums(is.na(df))
-
-
-
-impute_missing <- function(data) {
-  for (col in names(data)) {
-    if (any(is.na(data[[col]]))) {
-      if (is.numeric(data[[col]])) {
-
-        # Imputer par la mediane (plus robuste que la moyenne)
-
-
-        data[[col]][is.na(data[[col]])] <- median(data[[col]], na.rm = TRUE)
-      } else if (is.factor(data[[col]])) {
-        
-        mode_value <- names(sort(table(data[[col]]), decreasing = TRUE))[1]
-        data[[col]][is.na(data[[col]])] <- mode_value
-      }
-    }
+for (col in date_cols) {
+  if (col %in% names(df)) {
+    df[[col]] <- as.numeric(as.Date(df[[col]], format = "%d/%m/%Y"))  
   }
-  return(data)
 }
 
-df <- impute_missing(df)
 
-numeric_vars <- names(df)[sapply(df, is.numeric)]
-df[numeric_vars] <- as.data.frame(scale(df[numeric_vars], center = TRUE, scale = TRUE))
+for (col in names(df)) {
+  if (is.character(df[[col]])) {
+    df[[col]] <- as.factor(df[[col]])
+  }
+}
+
+#--------------------------------------------------
+
+# Filtrer les colonnes avec +80% de valeurs manquantes**
+#seuil_na <- 0.80  
+#col_na_pct <- colMeans(is.na(df))
+#cols_to_drop <- names(col_na_pct[col_na_pct > seuil_na])
+#df_filtered <- df %>% select(-all_of(cols_to_drop))
+#--------------------------------------------------
 
 
-sum(is.na(df))  
-write.csv(df, "data_cleaned.csv", row.names = FALSE)
-head(df)
+#imputer dabord les variables num
 
+df_filtered_numeric <- df %>%
+  select(where(is.numeric))
+
+
+#-----------------------------------------------
+num_cores <- detectCores() - 1
+
+# Fonction d'imputation avec Random Forest
+
+impute_data <- function(df) {
+  imputed_df <- mice(df, method = "rf", m = 1, maxit = 5, n.core = num_cores, n.imp.core = 1) 
+  df_complete <- complete(imputed_df)
+  return(df_complete)
+}
+
+df_filtered_imputed <- impute_data(df_filtered_numeric)
+
+#--------------------------------------------------
+
+#reconversion en date
+
+date_cols <- c("Assessment Date", "Last Inspection Date")
+
+
+for (col in date_cols) {
+  if (col %in% names(df_filtered_imputed)) {
+    df_filtered_imputed[[col]] <- as.Date(df_filtered_imputed[[col]], origin = "1970-01-01") 
+  }
+}
+
+#--------------------------------------------------
+# ⚡imputation kNN avec parallélisation  pour  cat
+ 
+df_categorical <- df %>% select(where(is.factor))
+
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+
+df_categorical_imputed <- kNN(df_categorical, k = 5, numFun = median)
+
+
+stopCluster(cl)
+
+df_categorical_imputed <- df_categorical_imputed %>%
+  select(!ends_with("_imp"))
+
+df_categorical_imputed
+
+# combiner valeur num et categorielles
+data <- cbind(df_categorical_imputed, df_filtered_imputed)
+df
+#--------------------------------------------------
